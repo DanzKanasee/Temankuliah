@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}TemanKuliah{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --ink: #162033; --navy: #0d1b2a; --navy-soft: #14283d; --accent: #4f46e5; }
+        body { background: #f4f7fb; color: var(--ink); }
+        .app-shell { min-height: 100vh; }
+        .sidebar { background: linear-gradient(180deg, var(--navy) 0%, #10283f 100%); color: #cbd5e1; }
+        .nav-link { display: flex; align-items: center; gap: .75rem; border-radius: .75rem; padding: .75rem .875rem; font-size: .9rem; transition: background .2s, color .2s; }
+        .nav-link:hover { background: rgba(255,255,255,.08); color: #fff; }
+        .nav-link.active { background: #4f46e5; color: #fff; box-shadow: 0 8px 20px rgba(79,70,229,.25); }
+        .nav-link i { width: 1.1rem; text-align: center; }
+        .main-content { min-width: 0; }
+        .surface { border: 1px solid #e2e8f0; border-radius: 1rem; background: #fff; box-shadow: 0 10px 30px rgba(15,23,42,.04); }
+        .field { width: 100%; border: 1px solid #cbd5e1; border-radius: .65rem; background: #fff; padding: .7rem .85rem; color: #172033; outline: none; }
+        .field:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.15); }
+        .mobile-menu:checked ~ .mobile-panel { display: block; }
+        @media (min-width: 1024px) { .sidebar { position: fixed; inset: 0 auto 0 0; width: 17rem; } .main-content { margin-left: 17rem; } .mobile-trigger { display: none; } }
+    </style>
+</head>
+<body>
+<div class="app-shell">
+    <header class="mobile-trigger sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:hidden">
+        <a href="/dashboard" class="font-bold text-slate-900"><i class="fa-solid fa-bolt mr-2 text-indigo-600"></i>TemanKuliah</a>
+        <label for="mobile-menu" class="cursor-pointer rounded-lg p-2 text-slate-600 hover:bg-slate-100" aria-label="Buka menu navigasi"><i class="fa-solid fa-bars"></i></label>
+    </header>
+    <input id="mobile-menu" class="mobile-menu hidden" type="checkbox">
+    <div class="mobile-panel fixed inset-x-0 top-[57px] z-20 hidden border-b border-slate-200 bg-white p-3 shadow-lg lg:hidden">
+        {% include 'partials/navigation.html' %}
+    </div>
+    <aside class="sidebar hidden min-h-screen w-68 p-5 lg:block">
+        <div class="flex min-h-screen flex-col">
+            <div class="px-2 pb-8 pt-3">
+                <a href="/dashboard" class="text-xl font-bold text-white"><i class="fa-solid fa-bolt mr-2 text-indigo-400"></i>TemanKuliah</a>
+                <p class="mt-1 pl-8 text-xs text-slate-400">Academic Workspace</p>
+            </div>
+            <div class="flex-1">{% include 'partials/navigation.html' %}</div>
+            <div class="border-t border-white/10 pt-5">
+                <p class="mb-3 truncate px-3 text-xs text-slate-400">{{ user_name|default('Mahasiswa') }}</p>
+                <form action="/logout" method="post"><button class="nav-link w-full text-left" type="submit"><i class="fa-solid fa-right-from-bracket"></i>Keluar</button></form>
+            </div>
+        </div>
+    </aside>
+    <main class="main-content">
+        <div class="mx-auto max-w-6xl p-4 sm:p-6 lg:p-10">
+            {% if error %}<div role="alert" class="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{{ error }}</div>{% endif %}
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+</div>
+<script>
+    document.querySelectorAll('.mobile-panel a, .mobile-panel button').forEach(function (item) {
+        item.addEventListener('click', function () { document.getElementById('mobile-menu').checked = false; });
+    });
+</script>
+</body>
+</html>

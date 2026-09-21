@@ -1,0 +1,6 @@
+.env
+__pycache__/
+*.py[cod]
+uploads/*
+!uploads/.gitkeep
+app_mahasiswa.db

@@ -1,0 +1,11 @@
+<nav class="space-y-1">
+    <a href="/dashboard" class="nav-link {% if active_page == 'dashboard' %}active{% endif %}"><i class="fa-solid fa-house"></i><span>Dashboard</span></a>
+    <a href="/ai-tools" class="nav-link {% if active_page == 'ai' %}active{% endif %}"><i class="fa-solid fa-wand-magic-sparkles"></i><span>Asisten AI</span></a>
+    <a href="/schedules" class="nav-link {% if active_page == 'schedules' %}active{% endif %}"><i class="fa-solid fa-calendar-days"></i><span>Jadwal Kuliah</span></a>
+    <a href="/deadlines" class="nav-link {% if active_page == 'tasks' %}active{% endif %}"><i class="fa-solid fa-clipboard-list"></i><span>Tugas &amp; Ujian</span></a>
+    <a href="/scholarships" class="nav-link {% if active_page == 'scholarships' %}active{% endif %}"><i class="fa-solid fa-graduation-cap"></i><span>Beasiswa</span></a>
+</nav>
+<div class="mt-4 border-t border-slate-200 pt-4 lg:hidden">
+    <p class="mb-2 px-3 text-xs text-slate-500">{{ user_name|default('Mahasiswa') }}</p>
+    <form action="/logout" method="post"><button class="nav-link w-full text-left text-rose-600" type="submit"><i class="fa-solid fa-right-from-bracket"></i><span>Keluar</span></button></form>
+</div>

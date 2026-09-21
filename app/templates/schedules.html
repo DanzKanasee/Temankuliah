@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Jadwal Kuliah · TemanKuliah{% endblock %}
+{% block content %}
+<p class="text-sm font-semibold text-indigo-600">JADWAL KULIAH</p>
+<h1 class="mt-1 text-3xl font-bold tracking-tight">Jadwal perkuliahan</h1>
+<p class="mt-2 text-sm text-slate-500">Unggah screenshot atau dokumen jadwal untuk mengubahnya menjadi tabel.</p>
+<section class="surface mt-7 p-4 sm:p-5">
+    <form action="/schedules/upload" method="post" enctype="multipart/form-data" class="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div class="min-w-0 flex-1"><label class="mb-1 block text-sm font-medium">File jadwal</label><input type="file" name="file" accept=".pdf,.docx,.png,.jpg,.jpeg" required class="field"></div>
+        <button class="rounded-lg bg-indigo-600 px-5 py-3 text-sm font-semibold text-white hover:bg-indigo-700">Baca jadwal</button>
+    </form>
+</section>
+{% for schedule in schedules %}
+<section class="surface mt-6 overflow-hidden">
+    <div class="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div class="min-w-0"><h2 class="truncate font-bold">{{ schedule.filename }}</h2><p class="mt-1 text-xs text-slate-500">Diunggah {{ schedule.created_at }}</p></div>
+        <form action="/schedules/{{ schedule.id }}/delete" method="post"><button class="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700">Hapus jadwal</button></form>
+    </div>
+    {% if schedule.days and schedule.slots %}
+    <div class="hidden overflow-hidden md:block">
+        <table class="w-full table-fixed text-left text-xs lg:text-sm">
+            <thead class="bg-slate-50 text-[10px] uppercase text-slate-500 lg:text-xs"><tr><th class="w-24 px-2 py-3 lg:w-28 lg:px-3">Jam</th>{% for day in schedule.days %}<th class="px-2 py-3 lg:px-3">{{ day.title() }}</th>{% endfor %}</tr></thead>
+            <tbody class="divide-y divide-slate-100">
+            {% for slot in schedule.slots %}<tr><td class="whitespace-nowrap px-2 py-3 font-semibold text-slate-500 lg:px-3">{{ slot }}</td>{% for day in schedule.days %}<td class="px-1.5 py-2 align-top lg:px-2">{% for entry in schedule.matrix[day][slot] %}<div class="rounded-md bg-indigo-50 p-2"><p class="break-words font-semibold leading-snug text-indigo-900">{{ entry.course_name }}</p>{% if entry.room %}<p class="mt-1 text-[11px] text-indigo-700">{{ entry.room }}</p>{% endif %}{% if entry.lecturer %}<p class="break-words text-[11px] leading-snug text-slate-500">{{ entry.lecturer }}</p>{% endif %}{% else %}<span class="text-slate-300">-</span>{% endfor %}</td>{% endfor %}</tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="divide-y divide-slate-100 md:hidden">
+        {% for day in schedule.days %}<section class="p-4"><h3 class="mb-3 text-sm font-bold uppercase tracking-wide text-indigo-700">{{ day.title() }}</h3><div class="space-y-2">{% for slot in schedule.slots %}{% for entry in schedule.matrix[day][slot] %}<article class="rounded-lg bg-indigo-50 p-3"><div class="flex items-start justify-between gap-3"><p class="font-semibold leading-snug text-indigo-900">{{ entry.course_name }}</p><span class="shrink-0 text-xs font-semibold text-slate-500">{{ slot }}</span></div>{% if entry.room or entry.lecturer %}<p class="mt-1 text-xs text-indigo-700">{% if entry.room %}{{ entry.room }}{% endif %}{% if entry.room and entry.lecturer %} · {% endif %}{% if entry.lecturer %}{{ entry.lecturer }}{% endif %}</p>{% endif %}</article>{% endfor %}{% endfor %}</div></section>{% endfor %}
+    </div>
+    {% else %}<p class="p-5 text-sm text-slate-500">Tidak ada entri jadwal pada file ini.</p>{% endif %}
+</section>
+{% else %}<section class="surface mt-6 p-8 text-center"><i class="fa-regular fa-calendar-days text-3xl text-slate-300"></i><p class="mt-3 font-semibold">Belum ada jadwal</p><p class="mt-1 text-sm text-slate-500">Unggah file jadwal untuk memulai.</p></section>{% endfor %}
+{% endblock %}
