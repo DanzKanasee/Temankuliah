@@ -1,7 +1,8 @@
 import sqlite3
 import os
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "app_mahasiswa.db")
+PROJECT_DB_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "app_mahasiswa.db")
+DB_PATH = os.path.join("/tmp", "app_mahasiswa.db") if os.getenv("VERCEL") else PROJECT_DB_PATH
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)

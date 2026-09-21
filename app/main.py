@@ -29,7 +29,9 @@ COOKIE_SECRET = os.getenv("SESSION_SECRET", secrets.token_urlsafe(32)).encode()
 PASSWORD_ITERATIONS = 600_000
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = BASE_DIR.parent / "uploads"
-UPLOAD_DIR.mkdir(exist_ok=True)
+if os.getenv("VERCEL"):
+    UPLOAD_DIR = Path("/tmp/uploads")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".pptx"}
 SCHEDULE_EXTENSIONS = {".pdf", ".docx", ".png", ".jpg", ".jpeg"}
 DAY_ORDER = {"SENIN": 0, "SELASA": 1, "RABU": 2, "KAMIS": 3, "JUMAT": 4, "SABTU": 5, "MINGGU": 6}
