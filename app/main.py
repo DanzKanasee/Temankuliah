@@ -84,7 +84,8 @@ def format_ai_result(text: str) -> Markup:
 async def startup_event():
     global reminder_task
     init_db()
-    reminder_task = asyncio.create_task(reminder_loop())
+    if not os.getenv("VERCEL"):
+        reminder_task = asyncio.create_task(reminder_loop())
 
 
 @app.on_event("shutdown")
@@ -103,6 +104,24 @@ async def reminder_loop():
             # Keep the scheduler alive if one polling cycle has a transient failure.
             print(f"Deadline reminder cycle failed: {exc}")
         await asyncio.sleep(30)
+
+
+@app.get("/api/cron/reminders")
+async def cron_reminders(request: Request):
+    """Run reminders from a Vercel Cron request instead of a persistent worker."""
+    cron_secret = os.getenv("CRON_SECRET")
+    authorization = request.headers.get("authorization", "")
+    if cron_secret and authorization != f"Bearer {cron_secret}":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    try:
+        send_due_reminders()
+    except RuntimeError as exc:
+        print(f"Cron reminder cycle failed: {exc}")
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        print(f"Cron reminder cycle failed: {exc}")
+        raise HTTPException(status_code=500, detail="Reminder cycle failed") from exc
+    return {"ok": True}
 
 
 def current_user_id(request: Request) -> int | None:

@@ -1,15 +1,118 @@
-import sqlite3
 import os
+import sqlite3
+from pathlib import Path
+
+from dotenv import load_dotenv
 
 PROJECT_DB_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "app_mahasiswa.db")
 DB_PATH = os.path.join("/tmp", "app_mahasiswa.db") if os.getenv("VERCEL") else PROJECT_DB_PATH
 
+
+def load_project_env():
+    """Ensure the project-level .env is loaded before reading database settings."""
+    env_paths = [
+        Path(__file__).resolve().parents[2] / ".env",
+        Path.cwd() / ".env",
+    ]
+    for env_path in env_paths:
+        if env_path.exists():
+            load_dotenv(env_path, override=False)
+    load_dotenv(override=False)
+
+
+class PostgresRow(dict):
+    """Mapping row that also supports SQLite-style numeric indexes."""
+
+    def __init__(self, columns, values):
+        super().__init__(zip(columns, values))
+        self._values = tuple(values)
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return self._values[key]
+        return super().__getitem__(key)
+
+
+class PostgresCursor:
+    def __init__(self, cursor):
+        self._cursor = cursor
+        self._lastrowid = None
+
+    @staticmethod
+    def _postgres_sql(sql):
+        return sql.replace("?", "%s")
+
+    def execute(self, sql, parameters=()):
+        statement = self._postgres_sql(sql)
+        if statement.lstrip().upper().startswith("INSERT") and "RETURNING" not in statement.upper():
+            statement = f"{statement.rstrip().rstrip(';')} RETURNING id"
+        self._cursor.execute(statement, tuple(parameters))
+        self._lastrowid = None
+        if "RETURNING id" in statement.upper():
+            row = self._cursor.fetchone()
+            self._lastrowid = row[0] if row else None
+        return self
+
+    def fetchone(self):
+        row = self._cursor.fetchone()
+        return self._wrap(row)
+
+    def fetchall(self):
+        return [self._wrap(row) for row in self._cursor.fetchall()]
+
+    def _wrap(self, row):
+        if row is None:
+            return None
+        return PostgresRow([column.name for column in self._cursor.description], row)
+
+    @property
+    def lastrowid(self):
+        return self._lastrowid
+
+
+class PostgresConnection:
+    def __init__(self, connection):
+        self._connection = connection
+
+    def cursor(self):
+        return PostgresCursor(self._connection.cursor())
+
+    def execute(self, sql, parameters=()):
+        cursor = self.cursor()
+        return cursor.execute(sql, parameters)
+
+    def commit(self):
+        self._connection.commit()
+
+    def close(self):
+        self._connection.close()
+
+
+def supabase_database_url():
+    load_project_env()
+    return os.getenv("SUPABASE_DB_URL") or os.getenv("DATABASE_URL")
+
+
 def get_db():
+    database_url = supabase_database_url()
+    if database_url:
+        try:
+            import psycopg
+        except ImportError as exc:
+            raise RuntimeError("Install psycopg[binary] to use Supabase PostgreSQL.") from exc
+        try:
+            connection = psycopg.connect(database_url, sslmode="require")
+            return PostgresConnection(connection)
+        except Exception as exc:
+            raise RuntimeError(f"Failed to connect to Supabase PostgreSQL: {exc}") from exc
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
+
 def init_db():
+    if supabase_database_url():
+        return
     conn = get_db()
     cursor = conn.cursor()
     

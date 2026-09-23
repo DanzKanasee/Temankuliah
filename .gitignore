@@ -4,3 +4,6 @@ __pycache__/
 uploads/*
 !uploads/.gitkeep
 app_mahasiswa.db
+
+.vercel
+.env*
