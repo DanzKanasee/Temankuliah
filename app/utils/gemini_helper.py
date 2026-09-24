@@ -12,21 +12,48 @@ load_dotenv()
 # Inisialisasi Google GenAI Client
 api_key = os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=api_key) if api_key else None
-# Dapat dioverride melalui .env, misalnya GEMINI_MODEL=gemini-3.6-flash.
-MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+# Dapat dioverride melalui .env, misalnya GEMINI_MODEL=gemini-2.5-flash.
+DEFAULT_GEMINI_MODELS = [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-2.5-pro",
+]
+
+
+def get_model_name() -> str:
+    configured_model = os.getenv("GEMINI_MODEL", "").strip()
+    if configured_model:
+        return configured_model
+    return DEFAULT_GEMINI_MODELS[0]
+
+
+MODEL_NAME = get_model_name()
 
 
 def generate_text(prompt: str, max_output_tokens: int) -> str:
     """Jalur cepat untuk tugas dokumen yang tidak membutuhkan reasoning panjang."""
-    response = client.models.generate_content(
-        model=MODEL_NAME,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            max_output_tokens=max_output_tokens,
-            thinking_config=types.ThinkingConfig(thinking_level="minimal"),
-        ),
-    )
-    return response.text
+    if not client:
+        return ""
+    last_error = None
+    for candidate_model in [os.getenv("GEMINI_MODEL", "").strip() or MODEL_NAME] + [
+        model for model in DEFAULT_GEMINI_MODELS if model != (os.getenv("GEMINI_MODEL", "").strip() or MODEL_NAME)
+    ]:
+        try:
+            response = client.models.generate_content(
+                model=candidate_model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    max_output_tokens=max_output_tokens,
+                    thinking_config=types.ThinkingConfig(thinking_level="minimal"),
+                ),
+            )
+            return response.text or ""
+        except Exception as exc:
+            last_error = exc
+    if last_error:
+        raise last_error
+    return ""
 
 
 def format_schedule(text: str) -> str:
