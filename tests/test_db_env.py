@@ -148,6 +148,20 @@ Basis Data | LAB 1 | Siti A.
     assert entries[1]["day"] == "SELASA"
 
 
+def test_extract_schedule_entries_keeps_raw_text_when_gemini_is_unavailable(monkeypatch):
+    import app.utils.gemini_helper as gemini_helper
+
+    monkeypatch.setattr(gemini_helper, "client", None)
+
+    text = """SENIN
+07.30-09.10 Pemrograman Web | B-203 | Dr. Andi
+SELASA
+09.00-10.30 Basis Data | LAB 1 | Siti A.
+"""
+
+    assert gemini_helper.extract_schedule_entries(text) == text
+
+
 def test_send_due_reminders_only_sends_at_expected_deadline_windows(monkeypatch):
     import app.services.telegram_reminders as reminder_module
 

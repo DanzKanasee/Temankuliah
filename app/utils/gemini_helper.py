@@ -48,7 +48,19 @@ Teks dokumen:
 def extract_schedule_from_image(file_path: str) -> str:
     """Read a schedule screenshot directly into a JSON data set, not prose."""
     if not client:
-        return ""
+        try:
+            from PIL import Image
+            import pytesseract
+        except Exception:
+            return ""
+        try:
+            image = Image.open(file_path)
+            text = pytesseract.image_to_string(image, lang="eng+ind")
+            image.close()
+            return text.strip()
+        except Exception as exc:
+            print(f"OCR fallback failed for {file_path}: {exc}")
+            return ""
     path = Path(file_path)
     mime_type = mimetypes.guess_type(path.name)[0] or "image/png"
     prompt = """Baca tabel jadwal kuliah pada gambar dengan teliti dari baris pertama sampai terakhir.
@@ -73,7 +85,7 @@ Jangan mengarang dan jangan menambahkan jadwal yang tidak ada di gambar. Pastika
 def extract_schedule_entries(text: str) -> str:
     """Extract schedule rows from text originating in a PDF or Word document."""
     if not client:
-        return ""
+        return text or ""
     prompt = f"""Ekstrak SEMUA baris jadwal kuliah dari teks berikut. Kembalikan HANYA JSON valid array.
 Format setiap objek: {{"day":"SENIN","start":"07:30","end":"09:10","course":"Nama Mata Kuliah","room":"B314","lecturer":"Nama Dosen","class":"Kelas"}}.
 Jam wajib HH:MM, hari wajib SENIN/SELASA/RABU/KAMIS/JUMAT/SABTU/MINGGU. Jangan menebak nilai yang tidak tertulis; pakai string kosong untuk room, lecturer, atau class yang tidak ada.
