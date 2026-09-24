@@ -55,6 +55,8 @@ class PostgresCursor:
         return self
 
     def executemany(self, sql, seq_of_parameters):
+        # Bulk inserts here write child rows; callers use the parent ID from execute(),
+        # and no caller expects a lastrowid from executemany().
         statement = self._postgres_sql(sql)
         self._cursor.executemany(statement, [tuple(parameters) for parameters in seq_of_parameters])
         return self
@@ -93,6 +95,9 @@ class PostgresConnection:
 
     def commit(self):
         self._connection.commit()
+
+    def rollback(self):
+        self._connection.rollback()
 
     def close(self):
         self._connection.close()

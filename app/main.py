@@ -6,7 +6,9 @@ import shutil
 import re
 import asyncio
 import json
+import logging
 from contextlib import suppress
+from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
 from uuid import uuid4
@@ -25,6 +27,12 @@ from app.utils.parser import extract_text_from_file
 
 load_dotenv()
 app = FastAPI(title="AI Agent Mahasiswa Web")
+logger = logging.getLogger(__name__)
+APP_BUILD_ID = (
+    os.getenv("VERCEL_GIT_COMMIT_SHA")
+    or os.getenv("APP_BUILD_ID")
+    or datetime.now(timezone.utc).strftime("local-%Y%m%dT%H%M%SZ")
+)
 COOKIE_SECRET = os.getenv("SESSION_SECRET", secrets.token_urlsafe(32)).encode()
 PASSWORD_ITERATIONS = 600_000
 BASE_DIR = Path(__file__).resolve().parent
@@ -83,6 +91,11 @@ def format_ai_result(text: str) -> Markup:
 @app.on_event("startup")
 async def startup_event():
     global reminder_task
+    logger.info(
+        "app_startup build_id=%s deployment_id=%s",
+        APP_BUILD_ID,
+        os.getenv("VERCEL_DEPLOYMENT_ID", "local"),
+    )
     init_db()
     if not os.getenv("VERCEL"):
         reminder_task = asyncio.create_task(reminder_loop())
@@ -567,6 +580,7 @@ async def read_schedules(request: Request):
 async def upload_schedule(request: Request, file: UploadFile = File(...)):
     user_id = current_user_id(request)
     if not user_id:
+        logger.info("schedule_upload_redirect reason=unauthenticated")
         return RedirectResponse(url="/", status_code=303)
     filename = Path(file.filename or "").name
     suffix = Path(filename).suffix.lower()
@@ -576,16 +590,16 @@ async def upload_schedule(request: Request, file: UploadFile = File(...)):
     try:
         with saved_path.open("wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        if suffix in {".png", ".jpg", ".jpeg"}:
-            response_text = await asyncio.to_thread(extract_schedule_from_image, str(saved_path))
+        if suffix in {".png", ".jpg", ".jpeg", ".pdf"}:
+            # PDFs and images may be scans; send their original bytes for visual extraction.
+            extractor = extract_schedule_from_pdf if suffix == ".pdf" else extract_schedule_from_image
+            response_text = await asyncio.to_thread(extractor, str(saved_path))
             entries = parse_schedule_entries(response_text)
         else:
+            # DOCX has no visual-scan path; extract its text and ask Gemini to structure it.
             extracted_text = await asyncio.to_thread(extract_text_from_file, str(saved_path))
             response_text = await asyncio.to_thread(extract_schedule_entries, extracted_text) if extracted_text.strip() else ""
             entries = parse_schedule_entries(response_text)
-            if not entries and suffix == ".pdf":
-                response_text = await asyncio.to_thread(extract_schedule_from_pdf, str(saved_path))
-                entries = parse_schedule_entries(response_text)
     except Exception as exc:
         print(f"Schedule processing failed: {exc}")
         entries = []
@@ -600,12 +614,29 @@ async def upload_schedule(request: Request, file: UploadFile = File(...)):
         cursor = conn.cursor()
         cursor.execute("INSERT INTO schedules (user_id, filename, schedule_text) VALUES (?, ?, ?)", (user_id, filename, "Jadwal terstruktur"))
         schedule_id = cursor.lastrowid
+        if not isinstance(schedule_id, int):
+            raise RuntimeError("Schedule INSERT did not return an integer id")
         cursor.executemany(
             "INSERT INTO schedule_entries (schedule_id, day_name, start_time, end_time, course_name, room, lecturer, class_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             [(schedule_id, entry["day"], entry["start"], entry["end"], entry["course"], entry["room"] or None,
               entry["lecturer"] or None, entry["class"] or None) for entry in entries],
         )
+        stored_entry_count = conn.execute(
+            "SELECT COUNT(*) FROM schedule_entries WHERE schedule_id = ?", (schedule_id,)
+        ).fetchone()[0]
+        if stored_entry_count != len(entries):
+            raise RuntimeError(f"Schedule entry verification failed: expected {len(entries)}, found {stored_entry_count}")
         conn.commit()
+        logger.info(
+            "schedule_upload_commit_confirmed schedule_id=%s entries=%s user_id=%s",
+            schedule_id,
+            stored_entry_count,
+            user_id,
+        )
+    except Exception:
+        conn.rollback()
+        logger.exception("schedule_upload_persistence_failed user_id=%s", user_id)
+        raise
     finally:
         conn.close()
     return RedirectResponse(url="/schedules", status_code=303)

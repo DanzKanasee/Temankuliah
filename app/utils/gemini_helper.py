@@ -38,14 +38,18 @@ def get_model_name() -> str:
 MODEL_NAME = get_model_name()
 
 
+def model_candidates() -> list[str]:
+    """Try the configured model, then one current fallback to bound latency."""
+    configured_model = os.getenv("GEMINI_MODEL", "").strip() or MODEL_NAME
+    return list(dict.fromkeys([configured_model] + DEFAULT_GEMINI_MODELS))[:2]
+
+
 def generate_text(prompt: str, max_output_tokens: int) -> str:
     """Jalur cepat untuk tugas dokumen yang tidak membutuhkan reasoning panjang."""
     if not client:
         return ""
     last_error = None
-    for candidate_model in [os.getenv("GEMINI_MODEL", "").strip() or MODEL_NAME] + [
-        model for model in DEFAULT_GEMINI_MODELS if model != (os.getenv("GEMINI_MODEL", "").strip() or MODEL_NAME)
-    ]:
+    for candidate_model in model_candidates():
         try:
             response = client.models.generate_content(
                 model=candidate_model,
@@ -107,9 +111,7 @@ Normalisasi jam ke HH:MM. Contoh 07.30-09.10 menjadi start 07:30 dan end 09:10.
 Jangan melewatkan baris hanya karena Kode, ruang, dosen, atau kelas kosong. Gunakan string kosong untuk kolom yang tidak terbaca.
 Jangan mengarang dan jangan menambahkan jadwal yang tidak ada di dokumen. Pastikan setiap baris yang memiliki Hari, termasuk baris JUMAT, ikut dikembalikan. Dokumen dapat berupa tabel hasil scan atau diputar 90 derajat; sesuaikan orientasi saat membacanya."""
     media_part = types.Part.from_bytes(data=path.read_bytes(), mime_type=mime_type)
-    configured_model = os.getenv("GEMINI_MODEL", "").strip() or MODEL_NAME
-    # Limit a single upload to the configured model and one current fallback.
-    candidates = list(dict.fromkeys([configured_model] + DEFAULT_GEMINI_MODELS))[:2]
+    candidates = model_candidates()
     last_error = None
     day_names = {"SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "JUM'AT", "JUM", "MINGGU", "SABTU",
                  "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"}
