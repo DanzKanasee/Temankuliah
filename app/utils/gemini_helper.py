@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import mimetypes
 from pathlib import Path
 from datetime import datetime
@@ -99,18 +100,44 @@ Normalisasi hari ke SENIN, SELASA, RABU, KAMIS, JUMAT, SABTU, atau MINGGU. JUM'A
 Normalisasi jam ke HH:MM. Contoh 07.30-09.10 menjadi start 07:30 dan end 09:10.
 Jangan melewatkan baris hanya karena Kode, ruang, dosen, atau kelas kosong. Gunakan string kosong untuk kolom yang tidak terbaca.
 Jangan mengarang dan jangan menambahkan jadwal yang tidak ada di gambar. Pastikan setiap baris yang memiliki Hari, termasuk baris JUMAT, ikut dikembalikan."""
+    image_part = types.Part.from_bytes(data=path.read_bytes(), mime_type=mime_type)
+    configured_model = os.getenv("GEMINI_MODEL", "").strip() or MODEL_NAME
+    candidates = [configured_model] + [model for model in DEFAULT_GEMINI_MODELS if model != configured_model]
+    last_error = None
+    for candidate_model in candidates:
+        try:
+            response = client.models.generate_content(
+                model=candidate_model,
+                contents=[image_part, prompt],
+                config=types.GenerateContentConfig(
+                    max_output_tokens=4000,
+                    response_mime_type="application/json",
+                ),
+            )
+            result = response.text or ""
+            if result.strip():
+                cleaned = result.replace("```json", "").replace("```", "").strip()
+                json_match = re.search(r"\[\s*\{.*\}\s*\]", cleaned, flags=re.DOTALL)
+                try:
+                    json.loads(json_match.group(0) if json_match else cleaned)
+                    return result
+                except (TypeError, ValueError):
+                    last_error = ValueError("Gemini returned invalid schedule JSON")
+        except Exception as exc:
+            last_error = exc
+            print(f"Gemini image parsing failed with {candidate_model}: {exc}")
+
+    # Keep image uploads usable when Gemini is temporarily unavailable and a
+    # local Tesseract installation is present (for example, on a local server).
     try:
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=[types.Part.from_bytes(data=path.read_bytes(), mime_type=mime_type), prompt],
-            config=types.GenerateContentConfig(
-                max_output_tokens=4000,
-                response_mime_type="application/json",
-            ),
-        )
-        return response.text or ""
+        from PIL import Image
+        import pytesseract
+
+        with Image.open(file_path) as image:
+            return pytesseract.image_to_string(image, lang="eng+ind").strip()
     except Exception as exc:
-        print(f"Gemini image parsing failed for {file_path}: {exc}")
+        if last_error:
+            print(f"Local schedule OCR fallback failed for {file_path}: {exc}")
         return ""
 
 
