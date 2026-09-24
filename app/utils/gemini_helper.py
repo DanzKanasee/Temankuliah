@@ -12,8 +12,9 @@ load_dotenv()
 # Inisialisasi Google GenAI Client
 api_key = os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=api_key) if api_key else None
-# Dapat dioverride melalui .env, misalnya GEMINI_MODEL=gemini-2.5-flash.
+# Dapat dioverride melalui .env, misalnya GEMINI_MODEL=gemini-3.6-flash.
 DEFAULT_GEMINI_MODELS = [
+    "gemini-3.6-flash",
     "gemini-2.5-flash",
     "gemini-2.0-flash",
     "gemini-1.5-flash",
