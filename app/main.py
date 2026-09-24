@@ -20,7 +20,7 @@ from markupsafe import Markup
 from app.database.db import get_db, init_db
 from app.services.deadline_utils import combine_deadline_input, deadline_fields, is_future_deadline
 from app.services.telegram_reminders import TIMEZONE_OPTIONS, send_due_reminders
-from app.utils.gemini_helper import extract_deadlines, extract_schedule_entries, extract_schedule_from_image, generate_formula_explanation, generate_speaker_notes, generate_summary, translate_to_english
+from app.utils.gemini_helper import extract_deadlines, extract_schedule_entries, extract_schedule_from_image, extract_schedule_from_pdf, generate_formula_explanation, generate_speaker_notes, generate_summary, translate_to_english
 from app.utils.parser import extract_text_from_file
 
 load_dotenv()
@@ -576,8 +576,15 @@ async def upload_schedule(request: Request, file: UploadFile = File(...)):
     try:
         with saved_path.open("wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        response_text = extract_schedule_from_image(str(saved_path)) if suffix in {".png", ".jpg", ".jpeg"} else extract_schedule_entries(extract_text_from_file(str(saved_path)))
-        entries = parse_schedule_entries(response_text)
+        if suffix in {".png", ".jpg", ".jpeg"}:
+            response_text = extract_schedule_from_image(str(saved_path))
+            entries = parse_schedule_entries(response_text)
+        else:
+            extracted_text = extract_text_from_file(str(saved_path))
+            response_text = extract_schedule_entries(extracted_text) if extracted_text else ""
+            entries = parse_schedule_entries(response_text)
+            if not entries and suffix == ".pdf":
+                entries = parse_schedule_entries(extract_schedule_from_pdf(str(saved_path)))
     except Exception as exc:
         print(f"Schedule processing failed: {exc}")
         entries = []

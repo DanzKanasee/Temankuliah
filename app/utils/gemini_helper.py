@@ -74,9 +74,9 @@ Teks dokumen:
     return generate_text(prompt, max_output_tokens=1800)
 
 
-def extract_schedule_from_image(file_path: str) -> str:
-    """Read a schedule screenshot directly into a JSON data set, not prose."""
-    if not client:
+def _extract_schedule_from_media(file_path: str, mime_type: str) -> str:
+    """Read a schedule image or scanned PDF directly into structured rows."""
+    if not client and mime_type.startswith("image/"):
         try:
             from PIL import Image
             import pytesseract
@@ -90,8 +90,9 @@ def extract_schedule_from_image(file_path: str) -> str:
         except Exception as exc:
             print(f"OCR fallback failed for {file_path}: {exc}")
             return ""
+    if not client:
+        return ""
     path = Path(file_path)
-    mime_type = mimetypes.guess_type(path.name)[0] or "image/png"
     prompt = """Baca tabel jadwal kuliah pada gambar dengan teliti dari baris pertama sampai terakhir.
 Kolom yang mungkin ada: Kode, Mata Kuliah, Kelas, Hari, Jam, Ruang, Dosen.
 Kembalikan HANYA array JSON valid, tanpa Markdown, tanpa penjelasan. Satu baris tabel menjadi satu objek:
@@ -99,8 +100,8 @@ Kembalikan HANYA array JSON valid, tanpa Markdown, tanpa penjelasan. Satu baris 
 Normalisasi hari ke SENIN, SELASA, RABU, KAMIS, JUMAT, SABTU, atau MINGGU. JUM'AT, JUMAT, dan JUM harus selalu ditulis sebagai JUMAT.
 Normalisasi jam ke HH:MM. Contoh 07.30-09.10 menjadi start 07:30 dan end 09:10.
 Jangan melewatkan baris hanya karena Kode, ruang, dosen, atau kelas kosong. Gunakan string kosong untuk kolom yang tidak terbaca.
-Jangan mengarang dan jangan menambahkan jadwal yang tidak ada di gambar. Pastikan setiap baris yang memiliki Hari, termasuk baris JUMAT, ikut dikembalikan."""
-    image_part = types.Part.from_bytes(data=path.read_bytes(), mime_type=mime_type)
+Jangan mengarang dan jangan menambahkan jadwal yang tidak ada di dokumen. Pastikan setiap baris yang memiliki Hari, termasuk baris JUMAT, ikut dikembalikan. Dokumen dapat berupa tabel hasil scan atau diputar 90 derajat; sesuaikan orientasi saat membacanya."""
+    media_part = types.Part.from_bytes(data=path.read_bytes(), mime_type=mime_type)
     configured_model = os.getenv("GEMINI_MODEL", "").strip() or MODEL_NAME
     candidates = [configured_model] + [model for model in DEFAULT_GEMINI_MODELS if model != configured_model]
     last_error = None
@@ -108,7 +109,7 @@ Jangan mengarang dan jangan menambahkan jadwal yang tidak ada di gambar. Pastika
         try:
             response = client.models.generate_content(
                 model=candidate_model,
-                contents=[image_part, prompt],
+                contents=[media_part, prompt],
                 config=types.GenerateContentConfig(
                     max_output_tokens=4000,
                     response_mime_type="application/json",
@@ -119,8 +120,11 @@ Jangan mengarang dan jangan menambahkan jadwal yang tidak ada di gambar. Pastika
                 cleaned = result.replace("```json", "").replace("```", "").strip()
                 json_match = re.search(r"\[\s*\{.*\}\s*\]", cleaned, flags=re.DOTALL)
                 try:
-                    json.loads(json_match.group(0) if json_match else cleaned)
-                    return result
+                    values = json.loads(json_match.group(0) if json_match else cleaned)
+                    if isinstance(values, dict):
+                        values = values.get("rows") or values.get("schedule") or values.get("entries") or values.get("data") or [values]
+                    if isinstance(values, list) and any(isinstance(value, dict) for value in values):
+                        return result
                 except (TypeError, ValueError):
                     last_error = ValueError("Gemini returned invalid schedule JSON")
         except Exception as exc:
@@ -129,6 +133,8 @@ Jangan mengarang dan jangan menambahkan jadwal yang tidak ada di gambar. Pastika
 
     # Keep image uploads usable when Gemini is temporarily unavailable and a
     # local Tesseract installation is present (for example, on a local server).
+    if not mime_type.startswith("image/"):
+        return ""
     try:
         from PIL import Image
         import pytesseract
@@ -139,6 +145,17 @@ Jangan mengarang dan jangan menambahkan jadwal yang tidak ada di gambar. Pastika
         if last_error:
             print(f"Local schedule OCR fallback failed for {file_path}: {exc}")
         return ""
+
+
+def extract_schedule_from_image(file_path: str) -> str:
+    """Read a schedule screenshot directly into a JSON data set."""
+    mime_type = mimetypes.guess_type(file_path)[0] or "image/png"
+    return _extract_schedule_from_media(file_path, mime_type)
+
+
+def extract_schedule_from_pdf(file_path: str) -> str:
+    """Read a scanned schedule PDF directly when it has no extractable text."""
+    return _extract_schedule_from_media(file_path, "application/pdf")
 
 
 def extract_schedule_entries(text: str) -> str:
