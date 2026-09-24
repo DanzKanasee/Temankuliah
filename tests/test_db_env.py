@@ -52,6 +52,26 @@ def test_postgres_cursor_supports_executemany():
     ]
 
 
+def test_postgres_cursor_returns_inserted_id():
+    class DummyCursor:
+        description = None
+
+        def execute(self, sql, parameters):
+            self.sql = sql
+            self.parameters = parameters
+
+        def fetchone(self):
+            return (42,)
+
+    inner = DummyCursor()
+    cursor = PostgresCursor(inner)
+
+    cursor.execute("INSERT INTO schedules (user_id) VALUES (?)", (7,))
+
+    assert inner.sql == "INSERT INTO schedules (user_id) VALUES (%s) RETURNING id"
+    assert cursor.lastrowid == 42
+
+
 def test_postgres_cursor_exposes_rowcount(monkeypatch):
     class DummyCursor:
         def __init__(self):

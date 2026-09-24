@@ -49,7 +49,7 @@ class PostgresCursor:
             statement = f"{statement.rstrip().rstrip(';')} RETURNING id"
         self._cursor.execute(statement, tuple(parameters))
         self._lastrowid = None
-        if "RETURNING id" in statement.upper():
+        if "RETURNING ID" in statement.upper():
             row = self._cursor.fetchone()
             self._lastrowid = row[0] if row else None
         return self
