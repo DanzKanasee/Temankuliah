@@ -13,13 +13,12 @@ load_dotenv()
 # Inisialisasi Google GenAI Client
 api_key = os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=api_key) if api_key else None
-# Dapat dioverride melalui .env, misalnya GEMINI_MODEL=gemini-3.6-flash.
+# Dapat dioverride melalui .env, misalnya GEMINI_MODEL=gemini-3.8-flash.
 DEFAULT_GEMINI_MODELS = [
+    "gemini-3.8-flash",
+    "gemini-3.7-flash",
     "gemini-3.6-flash",
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-2.5-pro",
+    "gemini-3.5-flash",
 ]
 
 
@@ -47,7 +46,7 @@ def generate_text(prompt: str, max_output_tokens: int) -> str:
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     max_output_tokens=max_output_tokens,
-                    thinking_config=types.ThinkingConfig(thinking_level="minimal"),
+                    thinking_config=types.ThinkingConfig(thinking_level="low"),
                 ),
             )
             return response.text or ""

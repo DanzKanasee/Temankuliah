@@ -169,7 +169,7 @@ def test_default_gemini_model_uses_supported_flash_variant(monkeypatch):
 
     assert gemini_helper.get_model_name().startswith("gemini-")
     assert "flash" in gemini_helper.get_model_name().lower()
-    assert gemini_helper.get_model_name() in {"gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"}
+    assert gemini_helper.get_model_name() in {"gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash"}
 
 
 def test_extract_schedule_entries_returns_raw_text_when_gemini_fails(monkeypatch):
