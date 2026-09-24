@@ -88,9 +88,11 @@ def send_due_reminders() -> None:
                 continue
             for reminder_type, offset, human_time in REMINDERS:
                 reminder_at = deadline - offset
-                # The loop runs every 30 seconds. A two-minute window avoids sending
-                # old H-3/H-1 notifications all at once when a task is added late.
-                if now < reminder_at or now - reminder_at > timedelta(minutes=2):
+                # Reminder targets are intended to be sent exactly at H-3, H-1, and
+                # 10 minutes before the deadline. We allow a small scheduling tolerance
+                # so brief restarts or delayed polling do not miss a valid send window.
+                tolerance = timedelta(minutes=5)
+                if now < reminder_at - tolerance or now > reminder_at + tolerance:
                     continue
                 already_sent = conn.execute(
                     "SELECT 1 FROM deadline_notifications WHERE deadline_id = ? AND reminder_type = ?",

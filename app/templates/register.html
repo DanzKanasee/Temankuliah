@@ -19,9 +19,9 @@
                 <div><label class="mb-1 block text-sm font-medium text-slate-300">Jurusan / program studi</label><input name="major" required maxlength="160" value="{{ form_data.major or '' }}" placeholder="Contoh: Teknik Informatika" class="field"></div>
                 <div><label class="mb-1 block text-sm font-medium text-slate-300">NIM / nomor identitas <span class="text-slate-500">(opsional)</span></label><input name="student_id" maxlength="60" value="{{ form_data.student_id or '' }}" placeholder="Contoh: 12345678" class="field"></div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Telegram Chat ID</label>
-                    <input name="telegram_chat_id" required inputmode="numeric" pattern="-?[0-9]+" title="ID Telegram harus berupa angka." value="{{ form_data.telegram_chat_id or '' }}" placeholder="Contoh: 123456789" class="field">
-                    <p class="mt-2 text-xs text-amber-300">Masukkan ID Telegram untuk mendapatkan notifikasi deadline.</p>
+                    <label class="mb-1 block text-sm font-medium text-slate-300">Telegram Chat ID <span class="text-slate-500">(opsional)</span></label>
+                    <input name="telegram_chat_id" inputmode="numeric" pattern="-?[0-9]+" title="ID Telegram harus berupa angka." value="{{ form_data.telegram_chat_id or '' }}" placeholder="Contoh: 123456789" class="field">
+                    <p class="mt-2 text-xs text-amber-300">Isi ID Telegram jika Anda ingin menerima pengingat deadline lewat bot Telegram.</p>
                     <details class="mt-2 text-xs text-slate-400"><summary class="cursor-pointer text-indigo-400">Cara mendapatkan Chat ID</summary><ol class="mt-2 list-decimal space-y-1 pl-4"><li>Buka Telegram dan cari <strong>@userinfobot</strong>.</li><li>Tekan Start, lalu salin angka pada bagian Id.</li></ol></details>
                 </div>
                 <div><label class="mb-1 block text-sm font-medium text-slate-300">Kata sandi</label><input type="password" name="password" required minlength="8" autocomplete="new-password" placeholder="Minimal 8 karakter" class="field"></div>

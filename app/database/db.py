@@ -9,15 +9,16 @@ DB_PATH = os.path.join("/tmp", "app_mahasiswa.db") if os.getenv("VERCEL") else P
 
 
 def load_project_env():
-    """Ensure the project-level .env is loaded before reading database settings."""
-    env_paths = [
-        Path(__file__).resolve().parents[2] / ".env",
-        Path.cwd() / ".env",
-    ]
-    for env_path in env_paths:
-        if env_path.exists():
-            load_dotenv(env_path, override=False)
-    load_dotenv(override=False)
+    """Prefer the working-directory .env, then fall back to the project root .env."""
+    cwd_env = Path.cwd() / ".env"
+    project_env = Path(__file__).resolve().parents[2] / ".env"
+
+    if cwd_env.exists():
+        load_dotenv(cwd_env, override=True)
+        return
+
+    if project_env.exists():
+        load_dotenv(project_env, override=True)
 
 
 class PostgresRow(dict):
@@ -53,6 +54,11 @@ class PostgresCursor:
             self._lastrowid = row[0] if row else None
         return self
 
+    def executemany(self, sql, seq_of_parameters):
+        statement = self._postgres_sql(sql)
+        self._cursor.executemany(statement, [tuple(parameters) for parameters in seq_of_parameters])
+        return self
+
     def fetchone(self):
         row = self._cursor.fetchone()
         return self._wrap(row)
@@ -64,6 +70,10 @@ class PostgresCursor:
         if row is None:
             return None
         return PostgresRow([column.name for column in self._cursor.description], row)
+
+    @property
+    def rowcount(self):
+        return getattr(self._cursor, "rowcount", 0)
 
     @property
     def lastrowid(self):
@@ -99,21 +109,28 @@ def get_db():
         try:
             import psycopg
         except ImportError as exc:
-            raise RuntimeError("Install psycopg[binary] to use Supabase PostgreSQL.") from exc
+            print("Supabase PostgreSQL unavailable: psycopg is not installed. Falling back to local SQLite.")
+            conn = sqlite3.connect(DB_PATH)
+            conn.row_factory = sqlite3.Row
+            return conn
         try:
             connection = psycopg.connect(database_url, sslmode="require")
             return PostgresConnection(connection)
         except Exception as exc:
-            raise RuntimeError(f"Failed to connect to Supabase PostgreSQL: {exc}") from exc
+            print(f"Supabase PostgreSQL unavailable ({exc}). Falling back to local SQLite.")
+            conn = sqlite3.connect(DB_PATH)
+            conn.row_factory = sqlite3.Row
+            return conn
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
 
 def init_db():
-    if supabase_database_url():
-        return
     conn = get_db()
+    if isinstance(conn, PostgresConnection):
+        conn.close()
+        return
     cursor = conn.cursor()
     
     # Tabel User

@@ -350,11 +350,11 @@ async def register(request: Request, name: str = Form(...), email: str = Form(..
                    password: str = Form(...), password_confirmation: str = Form(...)):
     form_data = {"name": name.strip(), "email": email.strip().lower(), "institution": institution.strip(),
                  "student_id": (student_id or "").strip(), "major": major.strip(), "telegram_chat_id": (telegram_chat_id or "").strip()}
-    if not all((form_data["name"], form_data["email"], form_data["institution"], form_data["major"], form_data["telegram_chat_id"])):
-        return auth_form_error("register.html", request, "Lengkapi semua kolom wajib, termasuk ID Telegram.", form_data)
+    if not all((form_data["name"], form_data["email"], form_data["institution"], form_data["major"])):
+        return auth_form_error("register.html", request, "Lengkapi semua kolom wajib sebelum mendaftar.", form_data)
     if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", form_data["email"]):
         return auth_form_error("register.html", request, "Masukkan alamat email yang valid.", form_data)
-    if not re.fullmatch(r"-?\d+", form_data["telegram_chat_id"]):
+    if form_data["telegram_chat_id"] and not re.fullmatch(r"-?\d+", form_data["telegram_chat_id"]):
         return auth_form_error("register.html", request, "ID Telegram harus berupa angka. Contoh: 123456789.", form_data)
     if len(password) < 8:
         return auth_form_error("register.html", request, "Kata sandi minimal terdiri dari 8 karakter.", form_data)
