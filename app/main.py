@@ -224,32 +224,150 @@ def trusted_scholarships_for(major: str) -> list[dict]:
     return items
 
 
+def _coerce_schedule_day(value: str) -> str:
+    day = str(value or "").upper().strip()
+    day = re.sub(r"[^A-Z]", "", day)
+    day_aliases = {
+        "MONDAY": "SENIN", "TUESDAY": "SELASA", "WEDNESDAY": "RABU", "THURSDAY": "KAMIS",
+        "FRIDAY": "JUMAT", "FRI": "JUMAT", "JUM": "JUMAT", "JUMAT": "JUMAT", "JUMATNYA": "JUMAT",
+        "SATURDAY": "SABTU", "SUNDAY": "MINGGU",
+    }
+    return day_aliases.get(day, day)
+
+
+def fallback_parse_schedule_entries(raw_text: str) -> list[dict]:
+    """Parse raw schedule text extracted from PDF/Word when Gemini returns invalid JSON."""
+    if not raw_text:
+        return []
+
+    entries: list[dict] = []
+    current_day: str | None = None
+    raw_lines = [line.strip() for line in raw_text.replace("\r", "\n").split("\n")]
+
+    pending_course = ""
+    pending_slot = None
+
+    for line in raw_lines:
+        if not line:
+            continue
+
+        normalized = re.sub(r"\s+", " ", line).strip()
+        if not normalized:
+            continue
+
+        day_match = re.search(r"\b(SENIN|SELASA|RABU|KAMIS|JUMAT|SABTU|MINGGU)\b", normalized, flags=re.IGNORECASE)
+        if day_match:
+            current_day = _coerce_schedule_day(day_match.group(1))
+            if current_day not in DAY_ORDER:
+                current_day = None
+            pending_course = ""
+            pending_slot = None
+            continue
+
+        time_match = re.search(r"(\d{1,2})\s*[:.]\s*(\d{2})\s*(?:-|–|—|s/d|sampai)\s*(\d{1,2})\s*[:.]\s*(\d{2})", normalized, flags=re.IGNORECASE)
+        if time_match and current_day:
+            start = f"{int(time_match.group(1)):02d}:{time_match.group(2)}"
+            end = f"{int(time_match.group(3)):02d}:{time_match.group(4)}"
+            pending_slot = (start, end)
+            remainder = normalized[time_match.end():].strip()
+            if remainder:
+                pending_course = remainder.lstrip("-:|").strip()
+                course = pending_course.strip()
+                room = ""
+                lecturer = ""
+                class_name = ""
+                parts = [part.strip() for part in re.split(r"\s*\|\s*|\s*[-–—]\s*", course) if part.strip()]
+                if parts:
+                    course = parts[0]
+                if len(parts) > 1:
+                    candidate = parts[1]
+                    if re.search(r"(?:[A-Z]|\d{2,})", candidate):
+                        room = candidate
+                    else:
+                        class_name = candidate
+                if len(parts) > 2:
+                    lecturer = parts[2]
+                if len(parts) > 3:
+                    class_name = parts[3]
+                entries.append({
+                    "day": current_day,
+                    "start": pending_slot[0],
+                    "end": pending_slot[1],
+                    "course": course,
+                    "room": room,
+                    "lecturer": lecturer,
+                    "class": class_name,
+                })
+                pending_course = ""
+                pending_slot = None
+            continue
+
+        if current_day and pending_slot:
+            if not pending_course:
+                pending_course = normalized.lstrip("-:|").strip()
+            else:
+                pending_course = f"{pending_course} {normalized}".strip()
+
+        if not current_day or not pending_slot:
+            continue
+
+        course = pending_course.strip()
+        if not course:
+            continue
+
+        room = ""
+        lecturer = ""
+        class_name = ""
+        parts = [part.strip() for part in re.split(r"\s*\|\s*|\s*[-–—]\s*", course) if part.strip()]
+        if parts:
+            course = parts[0]
+        if len(parts) > 1:
+            candidate = parts[1]
+            if re.search(r"(?:[A-Z]|\d{2,})", candidate):
+                room = candidate
+            else:
+                class_name = candidate
+        if len(parts) > 2:
+            lecturer = parts[2]
+        if len(parts) > 3:
+            class_name = parts[3]
+
+        entries.append({
+            "day": current_day,
+            "start": pending_slot[0],
+            "end": pending_slot[1],
+            "course": course,
+            "room": room,
+            "lecturer": lecturer,
+            "class": class_name,
+        })
+        pending_course = ""
+        pending_slot = None
+
+    return entries
+
+
 def parse_schedule_entries(response_text: str) -> list[dict]:
     """Validate the AI response before it is allowed into the user's calendar."""
+    if not response_text:
+        return []
     try:
         cleaned = response_text.replace("```json", "").replace("```", "").strip()
         # Models sometimes add one sentence before/after an otherwise valid array.
         match = re.search(r"\[\s*\{.*\}\s*\]", cleaned, flags=re.DOTALL)
         values = json.loads(match.group(0) if match else cleaned)
     except (TypeError, ValueError, json.JSONDecodeError):
-        return []
+        return fallback_parse_schedule_entries(response_text)
     if isinstance(values, dict):
         wrapped_values = values.get("rows") or values.get("schedule") or values.get("entries") or values.get("data")
         values = wrapped_values if wrapped_values is not None else ([values] if any(key in values for key in ("day", "hari", "course", "mata_kuliah", "subject")) else [])
     if not isinstance(values, list):
-        return []
+        return fallback_parse_schedule_entries(response_text)
     entries = []
     for value in values:
         if not isinstance(value, dict):
             continue
-        day = str(value.get("day") or value.get("hari") or "").upper().strip()
-        day = re.sub(r"[^A-Z]", "", day)
-        day_aliases = {
-            "MONDAY": "SENIN", "TUESDAY": "SELASA", "WEDNESDAY": "RABU", "THURSDAY": "KAMIS",
-            "FRIDAY": "JUMAT", "FRI": "JUMAT", "JUM": "JUMAT", "JUMAT": "JUMAT", "JUMATNYA": "JUMAT",
-            "SATURDAY": "SABTU", "SUNDAY": "MINGGU",
-        }
-        day = day_aliases.get(day, day)
+        day = _coerce_schedule_day(value.get("day") or value.get("hari") or "")
         start = str(value.get("start") or value.get("jam_mulai") or "").strip()
         end = str(value.get("end") or value.get("jam_selesai") or "").strip()
         time_range = str(value.get("time") or value.get("jam") or value.get("time_range") or value.get("jam_kuliah") or "").strip()
@@ -263,7 +381,6 @@ def parse_schedule_entries(response_text: str) -> list[dict]:
         start = re.sub(r"[^0-9:]", "", start.replace(".", ":"))
         end = re.sub(r"[^0-9:]", "", end.replace(".", ":"))
         course = str(value.get("course") or value.get("course_name") or value.get("mata_kuliah") or value.get("subject") or "").strip()
-        # Accept 7:30 as well as 07:30, then store one standard format.
         if re.fullmatch(r"\d{1,2}:\d{2}", start):
             start = start.zfill(5)
         if re.fullmatch(r"\d{1,2}:\d{2}", end):
@@ -274,7 +391,7 @@ def parse_schedule_entries(response_text: str) -> list[dict]:
                         "room": str(value.get("room") or value.get("ruang") or "").strip(),
                         "lecturer": str(value.get("lecturer") or value.get("dosen") or "").strip(),
                         "class": str(value.get("class") or value.get("kelas") or "").strip()})
-    return entries
+    return entries if entries else fallback_parse_schedule_entries(response_text)
 
 
 def render_dashboard(request: Request, last_result: str | None = None, error: str | None = None,

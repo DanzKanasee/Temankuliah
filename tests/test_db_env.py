@@ -114,6 +114,40 @@ def test_get_db_falls_back_to_sqlite_when_supabase_is_unavailable(monkeypatch, t
         conn.close()
 
 
+def test_parse_schedule_entries_accepts_raw_pdf_text():
+    import app.main as main_module
+
+    text = """SENIN
+07.30-09.10 Pemrograman Web | B-203 | Dr. Andi
+SELASA
+09.00-10.30 Basis Data | LAB 1 | Siti A.
+"""
+
+    entries = main_module.parse_schedule_entries(text)
+
+    assert entries[0]["day"] == "SENIN"
+    assert entries[0]["course"] == "Pemrograman Web"
+    assert entries[1]["day"] == "SELASA"
+
+
+def test_parse_schedule_entries_handles_day_and_time_on_separate_lines():
+    import app.main as main_module
+
+    text = """SENIN
+07.30-09.10
+Pemrograman Web | B-203 | Dr. Andi
+SELASA
+09.00-10.30
+Basis Data | LAB 1 | Siti A.
+"""
+
+    entries = main_module.parse_schedule_entries(text)
+
+    assert entries[0]["day"] == "SENIN"
+    assert entries[0]["course"] == "Pemrograman Web"
+    assert entries[1]["day"] == "SELASA"
+
+
 def test_send_due_reminders_only_sends_at_expected_deadline_windows(monkeypatch):
     import app.services.telegram_reminders as reminder_module
 
