@@ -577,14 +577,15 @@ async def upload_schedule(request: Request, file: UploadFile = File(...)):
         with saved_path.open("wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         if suffix in {".png", ".jpg", ".jpeg"}:
-            response_text = extract_schedule_from_image(str(saved_path))
+            response_text = await asyncio.to_thread(extract_schedule_from_image, str(saved_path))
             entries = parse_schedule_entries(response_text)
         else:
-            extracted_text = extract_text_from_file(str(saved_path))
-            response_text = extract_schedule_entries(extracted_text) if extracted_text else ""
+            extracted_text = await asyncio.to_thread(extract_text_from_file, str(saved_path))
+            response_text = await asyncio.to_thread(extract_schedule_entries, extracted_text) if extracted_text.strip() else ""
             entries = parse_schedule_entries(response_text)
             if not entries and suffix == ".pdf":
-                entries = parse_schedule_entries(extract_schedule_from_pdf(str(saved_path)))
+                response_text = await asyncio.to_thread(extract_schedule_from_pdf, str(saved_path))
+                entries = parse_schedule_entries(response_text)
     except Exception as exc:
         print(f"Schedule processing failed: {exc}")
         entries = []

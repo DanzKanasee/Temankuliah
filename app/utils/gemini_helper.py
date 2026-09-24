@@ -12,7 +12,13 @@ load_dotenv()
 
 # Inisialisasi Google GenAI Client
 api_key = os.getenv("GEMINI_API_KEY")
-client = genai.Client(api_key=api_key) if api_key else None
+client = genai.Client(
+    api_key=api_key,
+    http_options=types.HttpOptions(
+        timeout=30_000,
+        retry_options=types.HttpRetryOptions(attempts=1),
+    ),
+) if api_key else None
 # Dapat dioverride melalui .env, misalnya GEMINI_MODEL=gemini-3.8-flash.
 DEFAULT_GEMINI_MODELS = [
     "gemini-3.8-flash",
@@ -102,7 +108,8 @@ Jangan melewatkan baris hanya karena Kode, ruang, dosen, atau kelas kosong. Guna
 Jangan mengarang dan jangan menambahkan jadwal yang tidak ada di dokumen. Pastikan setiap baris yang memiliki Hari, termasuk baris JUMAT, ikut dikembalikan. Dokumen dapat berupa tabel hasil scan atau diputar 90 derajat; sesuaikan orientasi saat membacanya."""
     media_part = types.Part.from_bytes(data=path.read_bytes(), mime_type=mime_type)
     configured_model = os.getenv("GEMINI_MODEL", "").strip() or MODEL_NAME
-    candidates = [configured_model] + [model for model in DEFAULT_GEMINI_MODELS if model != configured_model]
+    # Limit a single upload to the configured model and one current fallback.
+    candidates = list(dict.fromkeys([configured_model] + DEFAULT_GEMINI_MODELS))[:2]
     last_error = None
     day_names = {"SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "JUM'AT", "JUM", "MINGGU", "SABTU",
                  "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"}
