@@ -368,9 +368,9 @@ def parse_schedule_entries(response_text: str) -> list[dict]:
         if not isinstance(value, dict):
             continue
         day = _coerce_schedule_day(value.get("day") or value.get("hari") or "")
-        start = str(value.get("start") or value.get("jam_mulai") or "").strip()
-        end = str(value.get("end") or value.get("jam_selesai") or "").strip()
-        time_range = str(value.get("time") or value.get("jam") or value.get("time_range") or value.get("jam_kuliah") or "").strip()
+        start = str(value.get("start") or value.get("start_time") or value.get("jam_mulai") or "").strip()
+        end = str(value.get("end") or value.get("end_time") or value.get("jam_selesai") or "").strip()
+        time_range = str(value.get("time") or value.get("jam") or value.get("time_range") or value.get("jam_kuliah") or value.get("jam kuliah") or "").strip()
         if not time_range and not end and any(separator in start for separator in ("-", "–", "—")):
             time_range, start = start, ""
         if not start or not end:
@@ -380,7 +380,7 @@ def parse_schedule_entries(response_text: str) -> list[dict]:
                 end = f"{range_match.group(3)}:{range_match.group(4)}"
         start = re.sub(r"[^0-9:]", "", start.replace(".", ":"))
         end = re.sub(r"[^0-9:]", "", end.replace(".", ":"))
-        course = str(value.get("course") or value.get("course_name") or value.get("mata_kuliah") or value.get("subject") or "").strip()
+        course = str(value.get("course") or value.get("course_name") or value.get("mata_kuliah") or value.get("mata kuliah") or value.get("nama mata kuliah") or value.get("subject") or "").strip()
         if re.fullmatch(r"\d{1,2}:\d{2}", start):
             start = start.zfill(5)
         if re.fullmatch(r"\d{1,2}:\d{2}", end):

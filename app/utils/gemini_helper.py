@@ -105,6 +105,31 @@ Jangan mengarang dan jangan menambahkan jadwal yang tidak ada di dokumen. Pastik
     configured_model = os.getenv("GEMINI_MODEL", "").strip() or MODEL_NAME
     candidates = [configured_model] + [model for model in DEFAULT_GEMINI_MODELS if model != configured_model]
     last_error = None
+    day_names = {"SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "JUM'AT", "JUM", "MINGGU", "SABTU",
+                 "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"}
+
+    def has_schedule_row(value: object) -> bool:
+        if isinstance(value, dict):
+            rows = value.get("rows") or value.get("schedule") or value.get("entries") or value.get("data")
+            if rows is None:
+                rows = [value]
+            elif isinstance(rows, dict):
+                rows = [rows]
+        else:
+            rows = value
+        if not isinstance(rows, list):
+            return False
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            day = str(row.get("day") or row.get("hari") or "").upper().strip()
+            normalized_row = {str(key).lower().strip(): item for key, item in row.items()}
+            course = normalized_row.get("course") or normalized_row.get("course_name") or normalized_row.get("mata_kuliah") or normalized_row.get("mata kuliah") or normalized_row.get("subject")
+            time_value = " ".join(str(normalized_row.get(key) or "") for key in ("start", "end", "time", "jam", "jam_mulai", "jam_selesai", "time_range", "jam kuliah"))
+            if day in day_names and course and re.search(r"\d{1,2}\s*[.:]\s*\d{2}", time_value):
+                return True
+        return False
+
     for candidate_model in candidates:
         try:
             response = client.models.generate_content(
@@ -121,10 +146,9 @@ Jangan mengarang dan jangan menambahkan jadwal yang tidak ada di dokumen. Pastik
                 json_match = re.search(r"\[\s*\{.*\}\s*\]", cleaned, flags=re.DOTALL)
                 try:
                     values = json.loads(json_match.group(0) if json_match else cleaned)
-                    if isinstance(values, dict):
-                        values = values.get("rows") or values.get("schedule") or values.get("entries") or values.get("data") or [values]
-                    if isinstance(values, list) and any(isinstance(value, dict) for value in values):
+                    if has_schedule_row(values):
                         return result
+                    last_error = ValueError("Gemini returned JSON without a complete schedule row")
                 except (TypeError, ValueError):
                     last_error = ValueError("Gemini returned invalid schedule JSON")
         except Exception as exc:
