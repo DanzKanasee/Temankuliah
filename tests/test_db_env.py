@@ -172,6 +172,21 @@ def test_default_gemini_model_uses_supported_flash_variant(monkeypatch):
     assert gemini_helper.get_model_name() in {"gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"}
 
 
+def test_extract_schedule_entries_returns_raw_text_when_gemini_fails(monkeypatch):
+    import app.utils.gemini_helper as gemini_helper
+
+    monkeypatch.setattr(gemini_helper, "client", object())
+    monkeypatch.setattr(gemini_helper, "generate_text", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("model unavailable")))
+
+    text = """SENIN
+07.30-09.10 Pemrograman Web | B-203 | Dr. Andi
+SELASA
+09.00-10.30 Basis Data | LAB 1 | Siti A.
+"""
+
+    assert gemini_helper.extract_schedule_entries(text) == text
+
+
 def test_send_due_reminders_only_sends_at_expected_deadline_windows(monkeypatch):
     import app.services.telegram_reminders as reminder_module
 

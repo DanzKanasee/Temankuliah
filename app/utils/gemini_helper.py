@@ -99,15 +99,19 @@ Normalisasi hari ke SENIN, SELASA, RABU, KAMIS, JUMAT, SABTU, atau MINGGU. JUM'A
 Normalisasi jam ke HH:MM. Contoh 07.30-09.10 menjadi start 07:30 dan end 09:10.
 Jangan melewatkan baris hanya karena Kode, ruang, dosen, atau kelas kosong. Gunakan string kosong untuk kolom yang tidak terbaca.
 Jangan mengarang dan jangan menambahkan jadwal yang tidak ada di gambar. Pastikan setiap baris yang memiliki Hari, termasuk baris JUMAT, ikut dikembalikan."""
-    response = client.models.generate_content(
-        model=MODEL_NAME,
-        contents=[types.Part.from_bytes(data=path.read_bytes(), mime_type=mime_type), prompt],
-        config=types.GenerateContentConfig(
-            max_output_tokens=4000,
-            response_mime_type="application/json",
-        ),
-    )
-    return response.text or ""
+    try:
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=[types.Part.from_bytes(data=path.read_bytes(), mime_type=mime_type), prompt],
+            config=types.GenerateContentConfig(
+                max_output_tokens=4000,
+                response_mime_type="application/json",
+            ),
+        )
+        return response.text or ""
+    except Exception as exc:
+        print(f"Gemini image parsing failed for {file_path}: {exc}")
+        return ""
 
 
 def extract_schedule_entries(text: str) -> str:
@@ -118,7 +122,11 @@ def extract_schedule_entries(text: str) -> str:
 Format setiap objek: {{"day":"SENIN","start":"07:30","end":"09:10","course":"Nama Mata Kuliah","room":"B314","lecturer":"Nama Dosen","class":"Kelas"}}.
 Jam wajib HH:MM, hari wajib SENIN/SELASA/RABU/KAMIS/JUMAT/SABTU/MINGGU. Jangan menebak nilai yang tidak tertulis; pakai string kosong untuk room, lecturer, atau class yang tidak ada.
 Teks jadwal:\n{text[:18000]}"""
-    return generate_text(prompt, max_output_tokens=4000)
+    try:
+        return generate_text(prompt, max_output_tokens=4000)
+    except Exception as exc:
+        print(f"Gemini schedule parsing failed: {exc}")
+        return text or ""
 
 def generate_summary(text: str) -> str:
     """Fitur 1: Membuat rangkuman materi perkuliahan."""
